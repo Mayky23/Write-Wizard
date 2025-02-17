@@ -21,7 +21,7 @@ Go to the project directory
 Install dependencies
 
 ```bash
-  sudo WriteWizard.py
+  sudo python3 WriteWizard.py
 ```
 ## Imágenes
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-# -- coding: utf-8 --
+# -*- coding: utf-8 -*-
 import sys
 import subprocess
-import pkg_resources
+from importlib.metadata import distribution, PackageNotFoundError, version
 import os
 import json
 import re
+from openai import OpenAI
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -18,53 +19,22 @@ REQUIRED_PACKAGES = ["requests>=2.31.0", "openai>=1.0.0", "rich>=13.0.0"]
 
 def verificar_dependencias():
     """Verifica si las dependencias están instaladas y las instala si es necesario."""
-    try:
-        pkg_resources.require(REQUIRED_PACKAGES)
-    except pkg_resources.DistributionNotFound as e:
-        console.print(f"[bold red]❌ Dependencia faltante: {e}[/bold red]")
-        console.print("[bold yellow]Instalando dependencias...[/bold yellow]")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-        console.print("[bold green]✅ Dependencias instaladas correctamente.[/bold green]")
-    except pkg_resources.VersionConflict as e:
-        console.print(f"[bold red]❌ Versión incorrecta de dependencia: {e}[/bold red]")
-        console.print("[bold yellow]Actualizando dependencias...[/bold yellow]")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "-r", "requirements.txt"])
-        console.print("[bold green]✅ Dependencias actualizadas correctamente.[/bold green]")
-
-# Verifica si el script se está ejecutando dentro de un entorno virtual
-def verificar_entorno_virtual():
-    if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-        console.print("[bold yellow]⚡ No se detectó un entorno virtual. Creando y activando uno...[/bold yellow]")
-        crear_entorno_virtual()
-    else:
-        console.print("[bold green]✅ Entorno virtual ya activado.[/bold green]")
-
-# Crear entorno virtual
-def crear_entorno_virtual():
-    venv_dir = "myenv"
-    if not os.path.exists(venv_dir):
-        subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
-        console.print(f"[bold green]✅ Entorno virtual creado en: {venv_dir}[/bold green]")
-    else:
-        console.print(f"[bold yellow]⚡ El entorno virtual ya existe: {venv_dir}[/bold yellow]")
-    
-    # Activar el entorno virtual
-    activar_entorno_virtual(venv_dir)
-
-# Activar entorno virtual
-def activar_entorno_virtual(venv_dir):
-    activate_script = os.path.join(venv_dir, "bin", "activate")
-    if sys.platform == "win32":
-        activate_script = os.path.join(venv_dir, "Scripts", "activate.bat")
-    if os.path.exists(activate_script):
-        subprocess.check_call([activate_script])
-        console.print(f"[bold green]✅ Entorno virtual activado.[/bold green]")
-    else:
-        console.print(f"[bold red]❌ No se pudo activar el entorno virtual.[/bold red]")
-
-# Instalar las dependencias necesarias dentro del entorno virtual
-def instalar_dependencias():
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "openai", "requests", "rich"])
+    for package in REQUIRED_PACKAGES:
+        try:
+            dist = distribution(package.split(">=")[0])
+            required_version = package.split(">=")[1] if ">=" in package else None
+            if required_version and version(dist) < required_version:
+                raise ValueError(f"Versión insuficiente: {dist.version} < {required_version}")
+        except PackageNotFoundError:
+            console.print(f"[bold red]❌ Dependencia faltante: {package}[/bold red]")
+            console.print("[bold yellow]Instalando dependencias...[/bold yellow]")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+            console.print("[bold green]✅ Dependencias instaladas correctamente.[/bold green]")
+        except ValueError as e:
+            console.print(f"[bold red]❌ {e}[/bold red]")
+            console.print("[bold yellow]Actualizando dependencias...[/bold yellow]")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "-r", "requirements.txt"])
+            console.print("[bold green]✅ Dependencias actualizadas correctamente.[/bold green]")
 
 # Configuración Rich
 console = Console()
@@ -78,71 +48,121 @@ BANNER = """
   \/  \/ |_|  |_|\__\___|   \/  \/ |_/___\__,_|_|  \__,_|
 
 ---- By: MARH -------------------------------------------
+[/bold cyan]
 """
+
+# Configuración del cliente de DeepSeek
+API_KEY = "tu_api_key_aqui"  # ⚠️ Inserta tu API Key de DeepSeek aquí
+client = OpenAI(
+    api_key=API_KEY,
+    base_url="https://api.deepseek.com/v1"  # Endpoint oficial de DeepSeek
+)
+
 def generar_writeup(nombre_maquina, ip):
-    """Genera un write-up profesional usando DeepSeek"""
-    system_msg = f"""Eres un experto en CTFs y pentesting. Para {nombre_maquina} ({ip}), genera:
-1. *Reconocimiento*: Comandos de escaneo (nmap, masscan)
-2. *Enumeración*: Técnicas específicas por servicio
-3. *Explotación*: 3 métodos con payloads actualizados
-4. *Post-Explotación*: Comandos de pivoting
-5. *Escalada*: 2 vías de escalada (kernel/sudo)
-6. *Hardening*: Recomendaciones de seguridad
+    """Genera un write-up usando DeepSeek"""
+    system_msg = f"""Eres un experto en hacking ético. Genera una guía detallada para la máquina {nombre_maquina} ({ip}):
+    
+1. **Reconocimiento**: Comandos de escaneo (nmap/rustscan)
+2. **Enumeración**: Técnicas específicas por servicio
+3. **Explotación**: 3 métodos con payloads actualizados
+4. **Post-Explotación**: Comandos de pivoting
+5. **Escalada**: 2 vías de escalada (SUID/sudo)
+6. **Hardening**: Recomendaciones de seguridad
 
-Formato: Markdown con tabs de código ejecutables"""
-
+Formato: Markdown con código ejecutable"""
+    
     with Progress() as progress:
         task = progress.add_task("[cyan]Generando write-up...", total=100)
-        while not progress.finished:
-            progress.update(task, advance=10)
-            response = client.chat.completions.create(
-                model="deepseek-reasoner",
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": f"Genera write-up para {nombre_maquina}"}
-                ],
-                temperature=0.3,
-                max_tokens=3000
-            )
-            progress.update(task, completed=100)
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": "Genera el write-up en español"}
+            ],
+            temperature=0.3,
+            max_tokens=3000
+        )
+        progress.update(task, completed=100)
     
     return response.choices[0].message.content
 
+def analizar_puerto(ip, puerto):
+    """Analiza un puerto usando DeepSeek"""
+    with console.status("[bold green]Analizando puerto...[/bold green]"):
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{
+                "role": "user",
+                "content": f"Enumera vulnerabilidades y técnicas de explotación para {ip}:{puerto}"
+            }]
+        )
+        return response.choices[0].message.content
+
+def modo_automatico(ip):
+    """Genera script de automatización con DeepSeek"""
+    with console.status("[bold yellow]Generando script...[/bold yellow]"):
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{
+                "role": "user",
+                "content": f"Genera script Bash para hackear {ip} incluyendo: escaneo, explotación y post-explotación"
+            }]
+        )
+        return response.choices[0].message.content
+
+def exportar_writeup(writeup, nombre_maquina):
+    """Exporta el write-up generado"""
+    console.print("\n📤 [bold]Opciones de exportación:[/bold]")
+    console.print("1. Markdown (.md)\n2. Texto (.txt)\n3. HTML")
+    formato = console.input("⚡ Selección: ").strip()
+    
+    extension = {1: ".md", 2: ".txt", 3: ".html"}.get(int(formato), ".md")
+    ruta = console.input(f"📂 Ruta (Enter para default): ") or f"./{nombre_maquina}_writeup{extension}"
+    
+    try:
+        with open(ruta, "w") as f:
+            if extension == ".html":
+                f.write(f"<h1>Write-up {nombre_maquina}</h1>\n<pre>{writeup}</pre>")
+            else:
+                f.write(writeup)
+        console.print(f"✅ [bold green]Guardado en: {ruta}[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]❌ Error: {e}[/bold red]")
+
 def main():
-    # Verificar entorno virtual
-    verificar_entorno_virtual()
-
-    # Instalar dependencias si es necesario
-    instalar_dependencias()
-
-    # Continuar con el resto del código
-    maquina = console.input("\n🔧 [bold]Nombre de la máquina: [/bold]").strip()
+    verificar_dependencias()
+    console.print(Panel.fit(BANNER, style="bold cyan"))
+    
+    # Obtener datos de la máquina
+    maquina = console.input("\n🔧 [bold]Nombre máquina CTF: [/bold]").strip()
     ip = console.input("🌐 [bold]Dirección IP: [/bold]").strip()
     
+    writeup = None
     while True:
-        # Mostrar el menú y ejecutar las opciones
-        mostrar_menu()
-        opcion = console.input("\n⚡ [bold]Selecciona opción: [/bold]")
+        console.print("\n" + "="*50, style="bold blue"))
+        console.print("1. Generar write-up\n2. Analizar puerto\n3. Script automático\n4. Exportar\n5. Salir")
+        opcion = console.input("⚡ Opción: ").strip()
         
         if opcion == "1":
-            console.print(f"\n📜 [bold]Generando write-up para {maquina}...[/bold]\n")
             writeup = generar_writeup(maquina, ip)
             console.print(Markdown(writeup))
         elif opcion == "2":
-            puerto = console.input("🔦 [bold]Puerto a analizar (ej: 445): [/bold]")
-            console.print(f"\n🔎 [bold]Análisis de {ip}:{puerto}:[/bold]\n")
+            puerto = console.input("🔌 Puerto a analizar: ").strip()
             analisis = analizar_puerto(ip, puerto)
             console.print(Panel.fit(analisis, style="bold green"))
         elif opcion == "3":
-            console.print(f"\n🤖 [bold]Iniciando modo automático para {ip}...[/bold]\n")
             script = modo_automatico(ip)
             console.print(Panel.fit(script, style="bold yellow"))
         elif opcion == "4":
-            writeup = generar_writeup(maquina, ip)
-            exportar_writeup(writeup, maquina)
+            if writeup:
+                exportar_writeup(writeup, maquina)
+            else:
+                console.print("[bold red]❌ Primero genera un write-up[/bold red]")
         elif opcion == "5":
-            console.print("\n🧙‍♂️ [bold cyan]¡WriteWizard ha completado su magia! Saliendo...[/bold cyan]")
+            console.print("[bold red]🚪 Saliendo...[/bold red]")
             break
+        else:
+            console.print("[bold red]⚠️ Opción inválida[/bold red]")
 
 if __name__ == "__main__":
     main()

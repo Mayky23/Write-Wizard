@@ -6,19 +6,21 @@ Código en python con la API de DeepSeck para elaborar o encontrar write ups de 
 
 ## ⚠️​ Instalación
 
-Clone the project
+Dependencias:
+
+```bash
+  sudo apt update
+  sudo apt install python3-venv
+```
+
+Clonar el proyecto:
 
 ```bash
   git clone https://github.com/Mayky23/Write-Wizard
-```
-
-Go to the project directory
-
-```bash
   cd Write-Wizard
 ```
 
-Install dependencies
+Ejecutar la herramienta
 
 ```bash
   sudo python3 WriteWizard.py

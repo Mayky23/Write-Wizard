@@ -2,7 +2,7 @@
 Código en python con la API de DeepSeck para elaborar o encontrar write ups de maquinas de Hack The Box o Try Hack Me
 
 ## 🛠️ Debes añadir tu API Key
-![App Screenshot](https://via.placeholder.com/468x300?text=App+Screenshot+Here)
+![App Screenshot](/img/foto1.png)
 
 ## ⚠️​ Instalación
 

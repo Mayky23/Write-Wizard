@@ -13,6 +13,10 @@ from rich.table import Table
 from rich.progress import Progress
 from rich.markdown import Markdown
 from rich.style import Style
+import warnings
+
+# Ignorar advertencias de deprecación
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Verificación de dependencias
 REQUIRED_PACKAGES = ["requests>=2.31.0", "openai>=1.0.0", "rich>=13.0.0"]
@@ -39,7 +43,7 @@ client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 # Configuración Rich
 console = Console()
 
-BANNER = """
+BANNER = r"""
 [bold cyan]
  __    __      _ _         __    __ _                  _ 
 / / /\ \ \_ __(_) |_ ___  / / /\ \ (_)______ _ _ __ __| |
@@ -49,6 +53,7 @@ BANNER = """
 
 ---- By: MARH -------------------------------------------
                                                          
+
 [/bold cyan]
 """
 
@@ -70,8 +75,8 @@ Formato: Markdown con tabs de código ejecutables"""
             progress.update(task, advance=10)
             response = client.chat.completions.create(
                 model="deepseek-reasoner",
-                messages=[
-                    {"role": "system", "content": system_msg},
+                messages=[{
+                    "role": "system", "content": system_msg},
                     {"role": "user", "content": f"Genera write-up para {nombre_maquina}"}
                 ],
                 temperature=0.3,
@@ -179,5 +184,5 @@ def main():
             console.print("\n🧙‍♂️ [bold cyan]¡WriteWizard ha completado su magia! Saliendo...[/bold cyan]")
             break
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()

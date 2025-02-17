@@ -39,7 +39,7 @@ def verificar_dependencias():
 # Configuración Rich
 console = Console()
 
-BANNER = """
+BANNER = r"""
 [bold cyan]
  __    __      _ _         __    __ _                  _ 
 / / /\ \ \_ __(_) |_ ___  / / /\ \ (_)______ _ _ __ __| |
@@ -50,6 +50,7 @@ BANNER = """
 ---- By: MARH -------------------------------------------
 [/bold cyan]
 """
+
 
 # Configuración del cliente de DeepSeek
 API_KEY = "tu_api_key_aqui"  # ⚠️ Inserta tu API Key de DeepSeek aquí
@@ -139,7 +140,7 @@ def main():
     
     writeup = None
     while True:
-        console.print("\n" + "="*50, style="bold blue"))
+        console.print("\n" + "="*50, style="bold blue")
         console.print("1. Generar write-up\n2. Analizar puerto\n3. Script automático\n4. Exportar\n5. Salir")
         opcion = console.input("⚡ Opción: ").strip()
         

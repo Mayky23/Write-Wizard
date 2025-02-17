@@ -3,8 +3,7 @@
 import sys
 import subprocess
 import pkg_resources
-import requests
-from openai import OpenAI
+import os
 import json
 import re
 from rich.console import Console
@@ -13,10 +12,6 @@ from rich.table import Table
 from rich.progress import Progress
 from rich.markdown import Markdown
 from rich.style import Style
-import warnings
-
-# Ignorar advertencias de deprecación
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Verificación de dependencias
 REQUIRED_PACKAGES = ["requests>=2.31.0", "openai>=1.0.0", "rich>=13.0.0"]
@@ -36,14 +31,45 @@ def verificar_dependencias():
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "-r", "requirements.txt"])
         console.print("[bold green]✅ Dependencias actualizadas correctamente.[/bold green]")
 
-# Configuración DeepSeek
-DEEPSEEK_API_KEY = "TU_API_KEY_AQUI"  # 👉 Obténla en: https://platform.deepseek.com/api_keys
-client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+# Verifica si el script se está ejecutando dentro de un entorno virtual
+def verificar_entorno_virtual():
+    if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        console.print("[bold yellow]⚡ No se detectó un entorno virtual. Creando y activando uno...[/bold yellow]")
+        crear_entorno_virtual()
+    else:
+        console.print("[bold green]✅ Entorno virtual ya activado.[/bold green]")
+
+# Crear entorno virtual
+def crear_entorno_virtual():
+    venv_dir = "myenv"
+    if not os.path.exists(venv_dir):
+        subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+        console.print(f"[bold green]✅ Entorno virtual creado en: {venv_dir}[/bold green]")
+    else:
+        console.print(f"[bold yellow]⚡ El entorno virtual ya existe: {venv_dir}[/bold yellow]")
+    
+    # Activar el entorno virtual
+    activar_entorno_virtual(venv_dir)
+
+# Activar entorno virtual
+def activar_entorno_virtual(venv_dir):
+    activate_script = os.path.join(venv_dir, "bin", "activate")
+    if sys.platform == "win32":
+        activate_script = os.path.join(venv_dir, "Scripts", "activate.bat")
+    if os.path.exists(activate_script):
+        subprocess.check_call([activate_script])
+        console.print(f"[bold green]✅ Entorno virtual activado.[/bold green]")
+    else:
+        console.print(f"[bold red]❌ No se pudo activar el entorno virtual.[/bold red]")
+
+# Instalar las dependencias necesarias dentro del entorno virtual
+def instalar_dependencias():
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "openai", "requests", "rich"])
 
 # Configuración Rich
 console = Console()
 
-BANNER = r"""
+BANNER = """
 [bold cyan]
  __    __      _ _         __    __ _                  _ 
 / / /\ \ \_ __(_) |_ ___  / / /\ \ (_)______ _ _ __ __| |
@@ -52,11 +78,7 @@ BANNER = r"""
   \/  \/ |_|  |_|\__\___|   \/  \/ |_/___\__,_|_|  \__,_|
 
 ---- By: MARH -------------------------------------------
-                                                         
-
-[/bold cyan]
 """
-
 def generar_writeup(nombre_maquina, ip):
     """Genera un write-up profesional usando DeepSeek"""
     system_msg = f"""Eres un experto en CTFs y pentesting. Para {nombre_maquina} ({ip}), genera:
@@ -68,15 +90,15 @@ def generar_writeup(nombre_maquina, ip):
 6. *Hardening*: Recomendaciones de seguridad
 
 Formato: Markdown con tabs de código ejecutables"""
-    
+
     with Progress() as progress:
         task = progress.add_task("[cyan]Generando write-up...", total=100)
         while not progress.finished:
             progress.update(task, advance=10)
             response = client.chat.completions.create(
                 model="deepseek-reasoner",
-                messages=[{
-                    "role": "system", "content": system_msg},
+                messages=[
+                    {"role": "system", "content": system_msg},
                     {"role": "user", "content": f"Genera write-up para {nombre_maquina}"}
                 ],
                 temperature=0.3,
@@ -86,81 +108,19 @@ Formato: Markdown con tabs de código ejecutables"""
     
     return response.choices[0].message.content
 
-def analizar_puerto(ip, puerto):
-    """Análisis avanzado de un puerto específico"""
-    with console.status("[bold green]Analizando puerto...[/bold green]") as status:
-        response = client.chat.completions.create(
-            model="deepseek-reasoner",
-            messages=[{
-                "role": "user", 
-                "content": f"Analiza {ip}:{puerto} y lista 5 CVE recientes con PoCs"
-            }]
-        )
-        return response.choices[0].message.content
-
-def modo_automatico(ip):
-    """Genera un script Bash automático"""
-    with console.status("[bold yellow]Generando script automático...[/bold yellow]") as status:
-        response = client.chat.completions.create(
-            model="deepseek-reasoner",
-            messages=[{
-                "role": "user",
-                "content": f"Genera script Bash automático para {ip} con: escaneo, explotación y post-explotación"
-            }]
-        )
-        return response.choices[0].message.content
-
-def exportar_writeup(writeup, nombre_maquina):
-    """Exporta el write-up en el formato y ruta especificados"""
-    console.print("\n📤 [bold]Opciones de exportación:[/bold]")
-    console.print("1. Markdown (.md)")
-    console.print("2. Texto plano (.txt)")
-    console.print("3. HTML (.html)")
-    formato = console.input("⚡ Selecciona el formato (1-3): ").strip()
-    
-    if formato == "1":
-        extension = ".md"
-    elif formato == "2":
-        extension = ".txt"
-    elif formato == "3":
-        extension = ".html"
-    else:
-        console.print("[bold red]❌ Formato no válido. Usando Markdown por defecto.[/bold red]")
-        extension = ".md"
-    
-    ruta = console.input(f"📂 Ruta para guardar el archivo (deja vacío para ./{nombre_maquina}_writeup{extension}): ").strip()
-    if not ruta:
-        ruta = f"./{nombre_maquina}_writeup{extension}"
-    
-    try:
-        with open(ruta, "w") as f:
-            if formato == "3":  # HTML
-                f.write(f"<h1>Write-up de {nombre_maquina}</h1>\n<pre>{writeup}</pre>")
-            else:
-                f.write(f"# Write-up de {nombre_maquina}\n\n{writeup}")
-        console.print(f"✅ [bold green]Write-up guardado en {ruta}[/bold green]")
-    except Exception as e:
-        console.print(f"[bold red]❌ Error al guardar el archivo: {e}[/bold red]")
-
-def mostrar_menu():
-    console.print("\n" + "="*50, style="bold blue")
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Opción", style="cyan")
-    table.add_column("Descripción", style="green")
-    table.add_row("1", "🧙‍♂️ Generar write-up completo")
-    table.add_row("2", "🔍 Analizar puerto específico")
-    table.add_row("3", "🤖 Modo Automático (Autopwn)")
-    table.add_row("4", "📤 Exportar write-up")
-    table.add_row("5", "❌ Salir")
-    console.print(table)
-
 def main():
-    verificar_dependencias()  # Verifica e instala dependencias antes de continuar
-    console.print(Panel.fit(BANNER, style="bold cyan"))
+    # Verificar entorno virtual
+    verificar_entorno_virtual()
+
+    # Instalar dependencias si es necesario
+    instalar_dependencias()
+
+    # Continuar con el resto del código
     maquina = console.input("\n🔧 [bold]Nombre de la máquina: [/bold]").strip()
     ip = console.input("🌐 [bold]Dirección IP: [/bold]").strip()
     
     while True:
+        # Mostrar el menú y ejecutar las opciones
         mostrar_menu()
         opcion = console.input("\n⚡ [bold]Selecciona opción: [/bold]")
         
